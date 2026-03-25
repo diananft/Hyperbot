@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperbot Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; }
+        .header { background: #161b22; padding: 16px 24px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 20px; color: #58a6ff; }
+        .header .status { display: flex; gap: 16px; align-items: center; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .status-dot.running { background: #3fb950; }
+        .status-dot.stopped { background: #f85149; }
+        .container { padding: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+        .card h2 { font-size: 14px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .metric { font-size: 28px; font-weight: 600; }
+        .metric.positive { color: #3fb950; }
+        .metric.negative { color: #f85149; }
+        .metric-label { font-size: 12px; color: #8b949e; margin-top: 4px; }
+        .positions-table { width: 100%; border-collapse: collapse; }
+        .positions-table th { text-align: left; color: #8b949e; font-size: 12px; padding: 8px 12px; border-bottom: 1px solid #30363d; }
+        .positions-table td { padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #21262d; }
+        .trades-list { max-height: 300px; overflow-y: auto; }
+        .trade-item { padding: 8px 0; border-bottom: 1px solid #21262d; display: flex; justify-content: space-between; }
+        .kill-btn { background: #da3633; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .kill-btn:hover { background: #f85149; }
+        .wide { grid-column: 1 / -1; }
+        .pnl-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+        .pnl-day { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .pnl-day.pos { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+        .pnl-day.neg { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+        .gauge { width: 100%; height: 8px; background: #21262d; border-radius: 4px; margin-top: 8px; }
+        .gauge-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Hyperbot Trading Dashboard</h1>
+        <div class="status">
+            <span><span class="status-dot running" id="statusDot"></span> <span id="statusText">Loading...</span></span>
+            <span id="modeText" style="color: #8b949e;"></span>
+            <span id="wsStatus" style="color: #8b949e;"></span>
+            <button class="kill-btn" onclick="killSwitch()">KILL SWITCH</button>
+        </div>
+    </div>
+    <div class="container">
+        <div class="card">
+            <h2>Equity</h2>
+            <div class="metric" id="equity">$0.00</div>
+            <div class="metric-label">Account Value</div>
+        </div>
+        <div class="card">
+            <h2>Daily P&L</h2>
+            <div class="metric" id="dailyPnl">$0.00</div>
+            <div class="metric-label" id="dailyPnlPct">0.00%</div>
+        </div>
+        <div class="card">
+            <h2>Drawdown</h2>
+            <div class="metric negative" id="drawdown">0.00%</div>
+            <div class="gauge"><div class="gauge-fill" id="ddGauge" style="width:0%; background:#f85149;"></div></div>
+        </div>
+        <div class="card wide">
+            <h2>Open Positions</h2>
+            <table class="positions-table">
+                <thead><tr><th>Asset</th><th>Side</th><th>Entry</th><th>Qty</th><th>PnL</th><th>Stop Loss</th><th>Duration</th></tr></thead>
+                <tbody id="positionsBody"></tbody>
+            </table>
+        </div>
+        <div class="card wide">
+            <h2>Recent Trades</h2>
+            <div class="trades-list" id="tradesList"></div>
+        </div>
+        <div class="card wide">
+            <h2>Daily P&L (30 days)</h2>
+            <div class="pnl-bar" id="pnlBar"></div>
+        </div>
+    </div>
+    <script>
+        const REFRESH = 10000;
+        function fmt(n, d=2) { return n ? Number(n).toFixed(d) : '0.00'; }
+        function fmtUsd(n) { return '$' + fmt(n); }
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const d = await res.json();
+                document.getElementById('statusDot').className = 'status-dot ' + d.status;
+                document.getElementById('statusText').textContent = d.status.toUpperCase();
+                document.getElementById('modeText').textContent = d.mode.toUpperCase();
+                document.getElementById('wsStatus').textContent = d.ws_connected ? 'WS: Connected' : 'WS: Disconnected';
+                document.getElementById('equity').textContent = fmtUsd(d.equity);
+                if (d.portfolio) {
+                    const pnl = d.portfolio.daily_pnl_pct || 0;
+                    const dd = d.portfolio.drawdown_pct || 0;
+                    document.getElementById('dailyPnl').textContent = (pnl >= 0 ? '+' : '') + fmt(pnl*100) + '%';
+                    document.getElementById('dailyPnl').className = 'metric ' + (pnl >= 0 ? 'positive' : 'negative');
+                    document.getElementById('drawdown').textContent = fmt(dd*100) + '%';
+                    document.getElementById('ddGauge').style.width = Math.min(dd*1000, 100) + '%';
+                }
+                const tbody = document.getElementById('positionsBody');
+                tbody.innerHTML = '';
+                (d.positions || []).forEach(p => {
+                    const pnlClass = p.pnl >= 0 ? 'positive' : 'negative';
+                    tbody.innerHTML += `<tr><td>${p.asset}</td><td>${p.side.toUpperCase()}</td><td>${fmtUsd(p.entry_price)}</td><td>${fmt(p.quantity,6)}</td><td class="${pnlClass}">${fmtUsd(p.pnl)}</td><td>${fmtUsd(p.stop_loss)}</td><td>${fmt(p.duration_min,0)}m</td></tr>`;
+                });
+                if (!d.positions || d.positions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="color:#8b949e;text-align:center;">No open positions</td></tr>';
+                }
+            } catch(e) { console.error('Status fetch failed:', e); }
+        }
+
+        async function fetchTrades() {
+            try {
+                const res = await fetch('/api/trades?limit=20');
+                const trades = await res.json();
+                const list = document.getElementById('tradesList');
+                list.innerHTML = '';
+                trades.forEach(t => {
+                    const pnlClass = (t.pnl||0) >= 0 ? 'positive' : 'negative';
+                    list.innerHTML += `<div class="trade-item"><span>${t.asset} ${(t.side||'').toUpperCase()} ${(t.action||'').toUpperCase()}</span><span class="${pnlClass}">${fmtUsd(t.pnl)}</span></div>`;
+                });
+            } catch(e) {}
+        }
+
+        async function fetchDailyPnl() {
+            try {
+                const res = await fetch('/api/daily_pnl?days=30');
+                const data = await res.json();
+                const bar = document.getElementById('pnlBar');
+                bar.innerHTML = '';
+                data.forEach(d => {
+                    const cls = d.total_pnl >= 0 ? 'pos' : 'neg';
+                    bar.innerHTML += `<div class="pnl-day ${cls}">${d.date}: ${fmtUsd(d.total_pnl)}</div>`;
+                });
+            } catch(e) {}
+        }
+
+        async function killSwitch() {
+            if (!confirm('KILL SWITCH: This will close ALL positions immediately. Continue?')) return;
+            try {
+                await fetch('/kill', { method: 'POST' });
+                alert('Kill switch activated. All positions being closed.');
+            } catch(e) { alert('Kill switch failed: ' + e); }
+        }
+
+        fetchStatus(); fetchTrades(); fetchDailyPnl();
+        setInterval(fetchStatus, REFRESH);
+        setInterval(fetchTrades, REFRESH * 3);
+        setInterval(fetchDailyPnl, REFRESH * 6);
+    </script>
+</body>
+</html>

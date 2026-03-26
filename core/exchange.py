@@ -173,13 +173,15 @@ class HyperliquidExchange:
         end_time = int(time.time() * 1000)
         start_time = end_time - (limit * interval_ms)
 
-        result = self._info_request(
-            "candleSnapshot",
-            coin=coin,
-            interval=interval,
-            startTime=start_time,
-            endTime=end_time
-        )
+        result = self._request("/info", {
+            "type": "candleSnapshot",
+            "req": {
+                "coin": coin,
+                "interval": interval,
+                "startTime": start_time,
+                "endTime": end_time,
+            }
+        })
         if result:
             candles = []
             for c in result:
@@ -203,20 +205,28 @@ class HyperliquidExchange:
 
     def get_funding_rates(self, asset: str = None) -> Any:
         """Get current funding rates."""
-        meta = self.get_meta()
-        mids = self.get_all_mids()
-        if not meta or "universe" not in meta:
+        try:
+            # metaAndAssetCtxs returns meta + per-asset context including funding
+            result = self._info_request("metaAndAssetCtxs")
+            if not result or not isinstance(result, list) or len(result) < 2:
+                return {}
+            meta = result[0]
+            asset_ctxs = result[1]
+            universe = meta.get("universe", [])
+            rates = {}
+            for i, info in enumerate(universe):
+                name = info["name"]
+                if asset and name != asset.replace("-USD", "").replace("-PERP", ""):
+                    continue
+                ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
+                rates[name] = {
+                    "funding_rate": float(ctx.get("funding", 0)),
+                    "premium": float(ctx.get("premium", 0)),
+                }
+            return rates
+        except Exception as e:
+            logger.warning(f"Failed to get funding rates: {e}")
             return {}
-        rates = {}
-        for info in meta["universe"]:
-            name = info["name"]
-            if asset and name != asset.replace("-USD", "").replace("-PERP", ""):
-                continue
-            rates[name] = {
-                "funding_rate": float(info.get("funding", 0)),
-                "premium": float(info.get("premium", 0)),
-            }
-        return rates
 
     # ===== Account Methods =====
 

@@ -582,24 +582,37 @@ async def generate_single_nft(page, nft: dict, output_path: Path,
                 continue
 
             await inp.click(timeout=5000)
-            # Triple-click selects all text in the field, then overwrite
-            await inp.click(click_count=3)
             await asyncio.sleep(0.1)
-            # Also Ctrl+A as backup, then delete
-            await inp.press("Control+a")
-            await asyncio.sleep(0.1)
-            await inp.press("Delete")
-            await asyncio.sleep(0.1)
-            # fill("") clears via JS – works even for React/Vue controlled inputs
-            await inp.fill("")
-            await asyncio.sleep(0.2)
-            # Verify it's empty via JS before typing
-            current = await inp.input_value() if await inp.get_attribute("type") != "contenteditable" else await inp.inner_text()
-            if current.strip():
-                # Last resort: select-all + Backspace
+
+            # Detect element type to use the right clear method
+            tag = (await inp.evaluate("el => el.tagName")).lower()
+            is_contenteditable = (tag == "div" or tag == "span"
+                                  or await inp.get_attribute("contenteditable") == "true")
+
+            if is_contenteditable:
+                # For contenteditable divs: clear via JS directly
+                await inp.evaluate("el => { el.innerText = ''; el.textContent = ''; }")
+                await asyncio.sleep(0.1)
+                await inp.press("Control+a")
+                await inp.press("Delete")
+                await asyncio.sleep(0.1)
+                # Verify via inner_text
+                current = (await inp.inner_text()).strip()
+            else:
+                # For <textarea> / <input>: use fill("") which goes through React
+                await inp.press("Control+a")
+                await inp.press("Delete")
+                await asyncio.sleep(0.1)
+                await inp.fill("")
+                await asyncio.sleep(0.1)
+                current = (await inp.input_value()).strip()
+
+            # Final fallback if anything remains
+            if current:
                 await inp.press("Control+a")
                 await inp.press("Backspace")
                 await asyncio.sleep(0.1)
+
             await inp.type(prompt, delay=8)
             await asyncio.sleep(0.5)
 

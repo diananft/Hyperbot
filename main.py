@@ -188,8 +188,8 @@ class Hyperbot:
         """Single iteration of the trading loop."""
         now = time.time()
 
-        # Heartbeat check
-        if now - self._last_heartbeat > 60:
+        # Heartbeat check (every 5 minutes)
+        if now - self._last_heartbeat > 300:
             self._heartbeat()
             self._last_heartbeat = now
 
@@ -295,10 +295,11 @@ class Hyperbot:
         # Generate signal
         signal = self.signal_engine.generate_signal(asset, candles, orderbook, funding)
 
-        # Log signal
-        log_signal(self.signal_logger, asset=asset, score=signal.score,
-                   type=signal.signal_type.value, regime=signal.regime,
-                   components=signal.components)
+        # Log signal (only log to console when actionable)
+        if abs(signal.score) >= 0.3:
+            log_signal(self.signal_logger, asset=asset, score=signal.score,
+                       type=signal.signal_type.value, regime=signal.regime,
+                       components=signal.components)
         self.db.log_signal(
             asset=asset, composite_score=signal.score,
             trend_score=signal.components.get("trend", 0),

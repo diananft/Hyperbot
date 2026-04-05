@@ -222,7 +222,6 @@ class HyperliquidExchange:
             return {}
         try:
             result = self._info_request("clearinghouseState", user=self.wallet_address)
-            logger.info(f"Account state response keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
             return result or {}
         except Exception as e:
             logger.error(f"Failed to get account state: {e}")
@@ -273,7 +272,6 @@ class HyperliquidExchange:
                 try:
                     val = float(state[key].get("accountValue", "0"))
                     if val > 0:
-                        logger.info(f"Equity found in {key}: ${val:.2f}")
                         return val
                 except (ValueError, TypeError):
                     continue
@@ -282,7 +280,6 @@ class HyperliquidExchange:
         try:
             val = float(state.get("withdrawable", "0"))
             if val > 0:
-                logger.info(f"Equity from withdrawable: ${val:.2f}")
                 return val
         except (ValueError, TypeError):
             pass
@@ -290,8 +287,6 @@ class HyperliquidExchange:
         # Fallback: check spot balance
         spot = self.get_spot_balance()
         if spot > 0:
-            logger.info(f"Equity from spot balance: ${spot:.2f} "
-                       f"(NOTE: Transfer to perps for trading)")
             return spot
 
         logger.warning("No equity found in perps or spot")

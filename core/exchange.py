@@ -270,23 +270,35 @@ class HyperliquidExchange:
             logger.warning("Empty account state returned")
             return 0.0
 
-        # Try marginSummary first (standard location)
-        if "marginSummary" in state:
-            val = float(state["marginSummary"].get("accountValue", 0))
-            if val > 0:
-                return val
+        # Debug: log the actual values
+        for key in ["marginSummary", "crossMarginSummary"]:
+            if key in state:
+                logger.info(f"{key}: {state[key]}")
+        if "withdrawable" in state:
+            logger.info(f"withdrawable: {state['withdrawable']}")
 
-        # Try crossMarginSummary (newer API format)
-        if "crossMarginSummary" in state:
-            val = float(state["crossMarginSummary"].get("accountValue", 0))
-            if val > 0:
-                return val
+        # Try all possible locations for account value
+        for key in ["crossMarginSummary", "marginSummary"]:
+            if key in state and isinstance(state[key], dict):
+                for field in ["accountValue", "totalMarginUsed", "totalNtlPos", "totalRawUsd"]:
+                    val_str = state[key].get(field, "0")
+                    try:
+                        val = float(val_str)
+                        if val > 0 and field == "accountValue":
+                            logger.info(f"Equity found in {key}.{field}: ${val:.2f}")
+                            return val
+                    except (ValueError, TypeError):
+                        continue
 
         # Try withdrawable as last resort
         if "withdrawable" in state:
-            val = float(state["withdrawable"])
-            if val > 0:
-                return val
+            try:
+                val = float(state["withdrawable"])
+                if val > 0:
+                    logger.info(f"Equity from withdrawable: ${val:.2f}")
+                    return val
+            except (ValueError, TypeError):
+                pass
 
         logger.warning(f"Could not find equity in state. Available keys: {list(state.keys())}")
         return 0.0

@@ -1,0 +1,15 @@
+hyperliquid-python-sdk>=0.5.0
+pandas>=2.0
+numpy>=1.24
+scipy>=1.11
+pyyaml>=6.0
+python-dotenv>=1.0
+aiohttp>=3.9
+websockets>=12.0
+flask>=3.0
+requests>=2.31
+matplotlib>=3.8
+python-telegram-bot>=20.0
+seaborn>=0.13
+pyarrow>=14.0
+eth-account>=0.11.0

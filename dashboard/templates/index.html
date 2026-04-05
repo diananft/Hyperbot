@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperbot Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-card: #111827;
+            --bg-card-hover: #1a2332;
+            --bg-input: #1e293b;
+            --border: #1e293b;
+            --border-light: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #3b82f6;
+            --accent-light: #60a5fa;
+            --green: #22c55e;
+            --green-dim: rgba(34,197,94,0.12);
+            --red: #ef4444;
+            --red-dim: rgba(239,68,68,0.12);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234,179,8,0.12);
+            --purple: #a855f7;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background:var(--bg-primary); color:var(--text-primary); min-height:100vh; }
+
+        /* ===== NAVBAR ===== */
+        .navbar { background:var(--bg-card); border-bottom:1px solid var(--border); padding:0 24px; height:56px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+        .nav-left { display:flex; align-items:center; gap:16px; }
+        .nav-logo { font-size:18px; font-weight:700; color:var(--accent-light); letter-spacing:-0.5px; }
+        .nav-logo span { color:var(--text-muted); font-weight:400; font-size:13px; margin-left:8px; }
+        .badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+        .badge-paper { background:var(--yellow-dim); color:var(--yellow); }
+        .badge-live { background:var(--red-dim); color:var(--red); }
+        .badge-connected { background:var(--green-dim); color:var(--green); }
+        .badge-disconnected { background:var(--red-dim); color:var(--red); }
+        .nav-right { display:flex; align-items:center; gap:12px; }
+        .nav-btn { background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-secondary); padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; transition:all 0.15s; }
+        .nav-btn:hover { background:var(--border-light); color:var(--text-primary); }
+        .kill-btn { background:#991b1b; border:1px solid #dc2626; color:#fca5a5; font-weight:600; }
+        .kill-btn:hover { background:#dc2626; color:#fff; }
+
+        /* ===== LAYOUT ===== */
+        .main { padding:20px 24px; max-width:1440px; margin:0 auto; }
+        .grid-top { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:16px; }
+        .grid-mid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+        .grid-bot { display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px; }
+
+        /* ===== CARDS ===== */
+        .card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; transition:border-color 0.2s; }
+        .card:hover { border-color:var(--border-light); }
+        .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+        .card-title { font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+        .card-icon { font-size:14px; }
+
+        /* ===== METRICS ===== */
+        .metric-value { font-size:30px; font-weight:700; letter-spacing:-1px; line-height:1.1; }
+        .metric-sub { font-size:13px; color:var(--text-muted); margin-top:6px; }
+        .up { color:var(--green); }
+        .down { color:var(--red); }
+        .neutral { color:var(--text-secondary); }
+
+        /* ===== PROGRESS BAR ===== */
+        .progress-bar { width:100%; height:6px; background:var(--bg-input); border-radius:3px; margin-top:10px; overflow:hidden; }
+        .progress-fill { height:100%; border-radius:3px; transition:width 0.5s ease; }
+
+        /* ===== TABLE ===== */
+        .table-wrap { overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; }
+        th { text-align:left; font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; padding:10px 14px; border-bottom:1px solid var(--border); }
+        td { padding:12px 14px; font-size:13px; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+        tr:hover td { background:var(--bg-card-hover); }
+        .side-long { color:var(--green); font-weight:600; }
+        .side-short { color:var(--red); font-weight:600; }
+
+        /* ===== TRADE LIST ===== */
+        .trade-list { max-height:360px; overflow-y:auto; }
+        .trade-item { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); transition:background 0.15s; }
+        .trade-item:hover { background:var(--bg-card-hover); }
+        .trade-info { display:flex; flex-direction:column; gap:2px; }
+        .trade-main { font-size:13px; font-weight:500; }
+        .trade-detail { font-size:11px; color:var(--text-muted); }
+        .trade-pnl { font-size:14px; font-weight:600; }
+
+        /* ===== PNL CHART ===== */
+        .pnl-chart { display:flex; align-items:flex-end; gap:3px; height:120px; padding-top:10px; }
+        .pnl-bar { flex:1; min-width:8px; border-radius:3px 3px 0 0; transition:height 0.3s; position:relative; cursor:pointer; }
+        .pnl-bar:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--bg-input); border:1px solid var(--border-light); padding:4px 8px; border-radius:4px; font-size:11px; white-space:nowrap; color:var(--text-primary); z-index:10; }
+        .pnl-bar.pos { background:var(--green); }
+        .pnl-bar.neg { background:var(--red); }
+
+        /* ===== GUIDE PANEL ===== */
+        .guide { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+        .guide h3 { font-size:14px; font-weight:600; color:var(--accent-light); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .guide-section { margin-bottom:16px; }
+        .guide-section:last-child { margin-bottom:0; }
+        .guide-section h4 { font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:6px; }
+        .guide-section p, .guide-section li { font-size:12px; color:var(--text-muted); line-height:1.6; }
+        .guide-section ul { padding-left:16px; }
+        .tip { background:var(--bg-input); border-left:3px solid var(--accent); padding:10px 14px; border-radius:0 8px 8px 0; margin:8px 0; }
+        .tip p { font-size:12px; color:var(--text-secondary); }
+        .tip strong { color:var(--accent-light); }
+        .safety-item { display:flex; align-items:flex-start; gap:8px; padding:4px 0; }
+        .safety-dot { width:6px; height:6px; border-radius:50%; background:var(--green); margin-top:5px; flex-shrink:0; }
+
+        /* ===== TABS ===== */
+        .tabs { display:flex; gap:0; margin-bottom:16px; border-bottom:1px solid var(--border); }
+        .tab { padding:8px 16px; font-size:12px; font-weight:500; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
+        .tab:hover { color:var(--text-secondary); }
+        .tab.active { color:var(--accent-light); border-bottom-color:var(--accent); }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+
+        /* ===== SIGNAL METER ===== */
+        .signal-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); }
+        .signal-row:last-child { border:none; }
+        .signal-asset { font-size:13px; font-weight:600; width:50px; }
+        .signal-bar-wrap { flex:1; height:20px; background:var(--bg-input); border-radius:4px; position:relative; overflow:hidden; }
+        .signal-bar-center { position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--border-light); }
+        .signal-bar-fill { position:absolute; top:2px; bottom:2px; border-radius:3px; transition:all 0.5s; }
+        .signal-score { font-size:12px; font-weight:600; width:55px; text-align:right; }
+
+        /* ===== CONFIG DISPLAY ===== */
+        .config-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .config-item { display:flex; justify-content:space-between; padding:6px 10px; background:var(--bg-input); border-radius:6px; }
+        .config-label { font-size:11px; color:var(--text-muted); }
+        .config-val { font-size:12px; font-weight:600; color:var(--text-primary); }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width:6px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:var(--border-light); border-radius:3px; }
+
+        /* ===== EMPTY STATE ===== */
+        .empty { text-align:center; padding:30px; color:var(--text-muted); font-size:13px; }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width:1024px) {
+            .grid-top { grid-template-columns:repeat(2,1fr); }
+            .grid-mid, .grid-bot { grid-template-columns:1fr; }
+        }
+        @media (max-width:640px) {
+            .grid-top { grid-template-columns:1fr; }
+            .main { padding:12px; }
+            .navbar { padding:0 12px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <div class="nav-logo">HYPERBOT <span>Trading Dashboard</span></div>
+            <span class="badge" id="modeBadge">PAPER</span>
+            <span class="badge" id="wsBadge">--</span>
+        </div>
+        <div class="nav-right">
+            <span style="font-size:12px;color:var(--text-muted)" id="uptimeText"></span>
+            <button class="nav-btn" onclick="toggleGuide()">Guide</button>
+            <button class="nav-btn kill-btn" onclick="killSwitch()">KILL SWITCH</button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- TOP METRICS -->
+        <div class="grid-top">
+            <div class="card">
+                <div class="card-header"><span class="card-title">Account Equity</span></div>
+                <div class="metric-value" id="equity">$0.00</div>
+                <div class="metric-sub" id="equitySub">Loading...</div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Unrealized P&L</span></div>
+                <div class="metric-value neutral" id="unrealizedPnl">$0.00</div>
+                <div class="metric-sub" id="posCount">0 open positions</div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Daily P&L</span></div>
+                <div class="metric-value neutral" id="dailyPnl">0.00%</div>
+                <div class="metric-sub" id="dailySub">Today's performance</div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Max Drawdown</span></div>
+                <div class="metric-value" id="drawdown" style="color:var(--text-secondary)">0.00%</div>
+                <div class="progress-bar"><div class="progress-fill" id="ddBar" style="width:0%;background:var(--red)"></div></div>
+                <div class="metric-sub">10% limit triggers emergency stop</div>
+            </div>
+        </div>
+
+        <!-- MID: POSITIONS + SIGNALS -->
+        <div class="grid-mid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Open Positions</span>
+                    <span style="font-size:12px;color:var(--text-muted)" id="posTotal"></span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Asset</th><th>Side</th><th>Entry</th><th>Size</th><th>P&L</th><th>Stop Loss</th><th>TP Status</th><th>Time</th></tr></thead>
+                        <tbody id="posBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Live Signal Scores</span></div>
+                <div class="metric-sub" style="margin-bottom:10px">Score range: -1.0 (strong short) to +1.0 (strong long). Entry threshold: |0.5|</div>
+                <div id="signalBars"></div>
+            </div>
+        </div>
+
+        <!-- BOT: TRADES + PNL / GUIDE -->
+        <div class="grid-bot">
+            <div class="card">
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('trades')">Recent Trades</div>
+                    <div class="tab" onclick="switchTab('pnl')">Daily P&L Chart</div>
+                    <div class="tab" onclick="switchTab('config')">Bot Config</div>
+                </div>
+                <div class="tab-content active" id="tab-trades">
+                    <div class="trade-list" id="tradeList">
+                        <div class="empty">No trades yet. The bot will trade when signals are strong enough.</div>
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-pnl">
+                    <div class="pnl-chart" id="pnlChart">
+                        <div class="empty" style="width:100%">P&L data will appear after your first trading day.</div>
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-config">
+                    <div class="config-grid" id="configGrid"></div>
+                </div>
+            </div>
+
+            <!-- GUIDE PANEL -->
+            <div class="guide" id="guidePanel">
+                <h3>Quick Guide</h3>
+
+                <div class="guide-section">
+                    <h4>How It Works</h4>
+                    <p>Hyperbot analyzes 5 assets across multiple timeframes using 30+ technical indicators, orderbook data, and pattern recognition. When enough signals align (score > 0.5), it enters a position automatically.</p>
+                </div>
+
+                <div class="guide-section">
+                    <h4>Understanding Signals</h4>
+                    <ul>
+                        <li><strong>Score > +0.8</strong> = Strong long signal (full size entry)</li>
+                        <li><strong>+0.5 to +0.8</strong> = Moderate long (60% size)</li>
+                        <li><strong>-0.5 to +0.5</strong> = Neutral (no trade)</li>
+                        <li><strong>-0.5 to -0.8</strong> = Moderate short (60% size)</li>
+                        <li><strong>Below -0.8</strong> = Strong short signal (full size)</li>
+                    </ul>
+                </div>
+
+                <div class="tip">
+                    <p><strong>Tip:</strong> If signals stay near zero for a while, the market is ranging. The bot intentionally avoids trading in choppy conditions to protect your capital.</p>
+                </div>
+
+                <div class="guide-section">
+                    <h4>Position Management</h4>
+                    <ul>
+                        <li>Stop loss: set at 1.5x ATR from entry</li>
+                        <li>TP1 (40%): closes at 1.5x risk reward</li>
+                        <li>TP2 (30%): closes at 2.5x risk reward</li>
+                        <li>TP3 (30%): trails with ATR-based stop</li>
+                        <li>Time exit: closes after 40 candles with small profit</li>
+                    </ul>
+                </div>
+
+                <div class="guide-section">
+                    <h4>Safety Protections</h4>
+                    <div class="safety-item"><div class="safety-dot"></div><p>Max 2% equity risk per trade</p></div>
+                    <div class="safety-item"><div class="safety-dot"></div><p>Max 5x leverage cap</p></div>
+                    <div class="safety-item"><div class="safety-dot"></div><p>3% daily loss = halt until tomorrow</p></div>
+                    <div class="safety-item"><div class="safety-dot"></div><p>10% drawdown = close everything</p></div>
+                    <div class="safety-item"><div class="safety-dot"></div><p>5 losses in a row = 4 hour pause</p></div>
+                    <div class="safety-item"><div class="safety-dot"></div><p>Max 3 positions at once</p></div>
+                </div>
+
+                <div class="tip">
+                    <p><strong>Kill Switch:</strong> The red button cancels all orders and closes all positions at market price immediately. Use only in emergencies. You can also press Ctrl+C in the terminal.</p>
+                </div>
+
+                <div class="guide-section">
+                    <h4>Getting Started Tips</h4>
+                    <ul>
+                        <li>Start in <strong>paper mode</strong> for 48+ hours</li>
+                        <li>When going live, use 25% size first (risk_per_trade: 0.004)</li>
+                        <li>Check the logs/ folder for detailed signal analysis</li>
+                        <li>The dashboard auto-refreshes every 10 seconds</li>
+                        <li>You need funds in <strong>Perps</strong> balance (not Spot)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const REFRESH = 10000;
+        let lastSignals = {};
+
+        // ===== FORMATTING =====
+        function fmt(n, d=2) { return n != null ? Number(n).toFixed(d) : '0.00'; }
+        function fmtUsd(n) { return '$' + fmt(Math.abs(n)); }
+        function fmtPnl(n) { return (n >= 0 ? '+$' : '-$') + fmt(Math.abs(n)); }
+        function fmtPct(n) { return (n >= 0 ? '+' : '') + fmt(n) + '%'; }
+        function pnlClass(n) { return n > 0 ? 'up' : n < 0 ? 'down' : 'neutral'; }
+        function fmtDuration(min) {
+            if (min < 60) return fmt(min, 0) + 'm';
+            if (min < 1440) return fmt(min/60, 1) + 'h';
+            return fmt(min/1440, 1) + 'd';
+        }
+
+        // ===== STATUS =====
+        async function fetchStatus() {
+            try {
+                const r = await fetch('/api/status');
+                const d = await r.json();
+
+                // Mode badge
+                const mb = document.getElementById('modeBadge');
+                mb.textContent = d.mode.toUpperCase();
+                mb.className = 'badge badge-' + d.mode;
+
+                // WS badge
+                const wb = document.getElementById('wsBadge');
+                wb.textContent = d.ws_connected ? 'WS CONNECTED' : 'WS DISCONNECTED';
+                wb.className = 'badge ' + (d.ws_connected ? 'badge-connected' : 'badge-disconnected');
+
+                // Uptime
+                if (d.start_time) {
+                    const mins = Math.floor((Date.now() - new Date(d.start_time).getTime()) / 60000);
+                    document.getElementById('uptimeText').textContent = 'Uptime: ' + fmtDuration(mins);
+                }
+
+                // Equity
+                document.getElementById('equity').textContent = fmtUsd(d.equity);
+                document.getElementById('equitySub').textContent = d.mode === 'paper' ? 'Paper trading mode' : 'Live account';
+
+                // Unrealized PnL
+                const upnl = d.total_unrealized_pnl || 0;
+                const upnlEl = document.getElementById('unrealizedPnl');
+                upnlEl.textContent = fmtPnl(upnl);
+                upnlEl.className = 'metric-value ' + pnlClass(upnl);
+                document.getElementById('posCount').textContent = (d.positions?.length || 0) + ' open position' + (d.positions?.length !== 1 ? 's' : '');
+
+                // Daily PnL
+                const dp = (d.portfolio?.daily_pnl_pct || 0) * 100;
+                const dpEl = document.getElementById('dailyPnl');
+                dpEl.textContent = fmtPct(dp);
+                dpEl.className = 'metric-value ' + pnlClass(dp);
+
+                // Drawdown
+                const dd = (d.portfolio?.drawdown_pct || 0) * 100;
+                document.getElementById('drawdown').textContent = fmt(dd) + '%';
+                document.getElementById('drawdown').style.color = dd > 5 ? 'var(--red)' : dd > 2 ? 'var(--yellow)' : 'var(--text-secondary)';
+                document.getElementById('ddBar').style.width = Math.min(dd * 10, 100) + '%';
+
+                // Positions table
+                const tbody = document.getElementById('posBody');
+                tbody.innerHTML = '';
+                if (d.positions && d.positions.length > 0) {
+                    d.positions.forEach(p => {
+                        const sc = p.side === 'long' ? 'side-long' : 'side-short';
+                        const pc = pnlClass(p.pnl);
+                        const tpStatus = (p.tp1_hit ? 'TP1' : '') + (p.tp2_hit ? ' TP2' : '') || '-';
+                        tbody.innerHTML += `<tr>
+                            <td style="font-weight:600;color:var(--text-primary)">${p.asset}</td>
+                            <td class="${sc}">${p.side.toUpperCase()}</td>
+                            <td>${fmtUsd(p.entry_price)}</td>
+                            <td>${fmt(p.quantity, 6)}</td>
+                            <td class="${pc}" style="font-weight:600">${fmtPnl(p.pnl)} <span style="font-size:11px;opacity:0.7">(${fmtPct(p.pnl_pct)})</span></td>
+                            <td>${fmtUsd(p.stop_loss)}</td>
+                            <td>${tpStatus}</td>
+                            <td>${fmtDuration(p.duration_min)}</td>
+                        </tr>`;
+                    });
+                    document.getElementById('posTotal').textContent = 'Total: ' + fmtPnl(upnl);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty">No open positions - waiting for signals</td></tr>';
+                    document.getElementById('posTotal').textContent = '';
+                }
+
+                // Signal bars
+                updateSignals(d.assets || [], d.prices || {});
+
+            } catch(e) { console.error('Status fetch error:', e); }
+        }
+
+        // ===== SIGNALS =====
+        function updateSignals(assets, prices) {
+            const container = document.getElementById('signalBars');
+            if (!assets.length) return;
+            let html = '';
+            assets.forEach(asset => {
+                const score = lastSignals[asset] || 0;
+                const price = prices[asset] || 0;
+                const cls = score > 0.1 ? 'up' : score < -0.1 ? 'down' : 'neutral';
+                const pct = Math.abs(score) * 50;
+                const left = score >= 0 ? '50%' : (50 - pct) + '%';
+                const width = pct + '%';
+                const bg = score > 0 ? 'var(--green)' : score < 0 ? 'var(--red)' : 'var(--text-muted)';
+                html += `<div class="signal-row">
+                    <div class="signal-asset">${asset}</div>
+                    <div class="signal-bar-wrap">
+                        <div class="signal-bar-center"></div>
+                        <div class="signal-bar-fill" style="left:${left};width:${width};background:${bg}"></div>
+                    </div>
+                    <div class="signal-score ${cls}">${score >= 0 ? '+' : ''}${fmt(score, 3)}</div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // ===== TRADES =====
+        async function fetchTrades() {
+            try {
+                const r = await fetch('/api/trades?limit=30');
+                const trades = await r.json();
+                const list = document.getElementById('tradeList');
+                if (!trades.length) {
+                    list.innerHTML = '<div class="empty">No trades yet. The bot will trade when signals are strong enough (score > 0.5).</div>';
+                    return;
+                }
+                let html = '';
+                trades.forEach(t => {
+                    const pc = pnlClass(t.pnl || 0);
+                    const side = (t.side || '').toUpperCase();
+                    const action = (t.action || '').replace('_', ' ').toUpperCase();
+                    const sideClass = side === 'LONG' ? 'side-long' : 'side-short';
+                    html += `<div class="trade-item">
+                        <div class="trade-info">
+                            <div class="trade-main"><span class="${sideClass}">${side}</span> ${t.asset} <span style="color:var(--text-muted)">${action}</span></div>
+                            <div class="trade-detail">${t.entry_price ? fmtUsd(t.entry_price) : ''} ${t.exit_price ? '&rarr; ' + fmtUsd(t.exit_price) : ''} ${t.notes ? '| ' + t.notes : ''}</div>
+                        </div>
+                        <div class="trade-pnl ${pc}">${t.pnl != null ? fmtPnl(t.pnl) : '-'}</div>
+                    </div>`;
+                    // Track signals from trade data
+                    if (t.signal_score != null) lastSignals[t.asset] = t.signal_score;
+                });
+                list.innerHTML = html;
+            } catch(e) {}
+        }
+
+        // ===== DAILY PNL CHART =====
+        async function fetchDailyPnl() {
+            try {
+                const r = await fetch('/api/daily_pnl?days=30');
+                const data = await r.json();
+                const chart = document.getElementById('pnlChart');
+                if (!data.length) {
+                    chart.innerHTML = '<div class="empty" style="width:100%">P&L data will appear after your first trading day.</div>';
+                    return;
+                }
+                const maxAbs = Math.max(...data.map(d => Math.abs(d.total_pnl)), 1);
+                let html = '';
+                data.forEach(d => {
+                    const h = Math.max(Math.abs(d.total_pnl) / maxAbs * 100, 4);
+                    const cls = d.total_pnl >= 0 ? 'pos' : 'neg';
+                    const tip = d.date + ': ' + fmtPnl(d.total_pnl) + ' (' + d.num_trades + ' trades)';
+                    html += `<div class="pnl-bar ${cls}" style="height:${h}%" data-tip="${tip}"></div>`;
+                });
+                chart.innerHTML = html;
+            } catch(e) {}
+        }
+
+        // ===== CONFIG =====
+        async function fetchConfig() {
+            try {
+                const r = await fetch('/api/config');
+                const c = await r.json();
+                const grid = document.getElementById('configGrid');
+                const items = [
+                    ['Mode', c.mode?.toUpperCase()],
+                    ['Assets', c.assets?.join(', ')],
+                    ['Risk/Trade', (c.risk_per_trade*100).toFixed(1) + '%'],
+                    ['Max Leverage', c.max_leverage + 'x'],
+                    ['Max Positions', c.max_positions],
+                    ['Stop Loss', c.stop_atr_mult + 'x ATR'],
+                    ['TP1 Ratio', c.tp1_ratio + 'x risk'],
+                    ['TP2 Ratio', c.tp2_ratio + 'x risk'],
+                    ['Daily Loss Halt', (c.daily_loss_halt*100) + '%'],
+                    ['Max Drawdown', (c.max_drawdown*100) + '%'],
+                ];
+                grid.innerHTML = items.map(([l,v]) =>
+                    `<div class="config-item"><span class="config-label">${l}</span><span class="config-val">${v}</span></div>`
+                ).join('');
+            } catch(e) {}
+        }
+
+        // ===== STATS for signals =====
+        async function fetchStats() {
+            try {
+                const r = await fetch('/api/stats');
+                const s = await r.json();
+                // Could display win rate etc
+            } catch(e) {}
+        }
+
+        // ===== TABS =====
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // ===== GUIDE TOGGLE =====
+        let guideVisible = true;
+        function toggleGuide() {
+            guideVisible = !guideVisible;
+            document.getElementById('guidePanel').style.display = guideVisible ? 'block' : 'none';
+        }
+
+        // ===== KILL SWITCH =====
+        async function killSwitch() {
+            if (!confirm('EMERGENCY KILL SWITCH\\n\\nThis will immediately:\\n- Cancel ALL open orders\\n- Close ALL positions at market price\\n- Stop the bot\\n\\nAre you sure?')) return;
+            try {
+                await fetch('/kill', { method: 'POST' });
+                alert('Kill switch activated. All positions being closed.');
+                location.reload();
+            } catch(e) { alert('Kill switch failed: ' + e); }
+        }
+
+        // ===== INIT =====
+        fetchStatus();
+        fetchTrades();
+        fetchDailyPnl();
+        fetchConfig();
+
+        setInterval(fetchStatus, REFRESH);
+        setInterval(fetchTrades, REFRESH * 3);
+        setInterval(fetchDailyPnl, REFRESH * 6);
+    </script>
+</body>
+</html>

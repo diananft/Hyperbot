@@ -1,0 +1,173 @@
+# ============================================================
+# Hyperbot Trading Configuration
+# ============================================================
+
+mode: "paper"  # paper | live | backtest
+
+# Assets to trade
+assets:
+  - "BTC"
+  - "ETH"
+  - "SOL"
+  - "ARB"
+  - "DOGE"
+
+# Timeframes
+timeframes:
+  higher: "4h"      # Trend bias
+  execution: "15m"   # Entry signals
+  trigger: "1m"      # Timing
+
+# Signal Engine Weights (must sum to 1.0)
+signal_weights:
+  trend: 0.25
+  momentum: 0.15
+  volume: 0.15
+  orderbook: 0.10
+  patterns: 0.10
+  mtf_confluence: 0.15
+  regime: 0.10
+
+# Signal Thresholds
+signal_thresholds:
+  strong_entry: 0.8      # Full size entry
+  normal_entry: 0.5      # 60% size entry
+  confluence_min: 0.7    # Minimum MTF confluence to trade
+  volume_ma_period: 20   # Volume must be above this MA
+
+# Risk Management
+risk:
+  risk_per_trade: 0.015    # 1.5% per trade
+  max_risk_per_trade: 0.02 # 2% hard cap
+  max_leverage: 5.0
+  max_total_exposure: 0.15 # 15% of equity
+  max_per_asset: 0.08      # 8% per asset
+  max_concurrent_positions: 3
+  correlation_threshold: 0.7
+
+# Stop Loss
+stop_loss:
+  atr_multiplier: 1.5
+  min_distance: 0.003     # 0.3%
+  max_distance: 0.03      # 3%
+  breakeven_trigger: 1.0  # ATR multiples of profit
+  trail_stage1_trigger: 2.0
+  trail_stage1_atr: 1.0
+  trail_stage2_trigger: 3.0
+  trail_stage2_atr: 0.75
+  time_decay_candles: 20
+  time_decay_atr: 0.75
+  time_exit_candles: 40
+  time_exit_atr: 1.0
+  high_vol_multiplier: 1.3
+  low_vol_multiplier: 0.7
+
+# Take Profit
+take_profit:
+  tp1_ratio: 1.5    # Risk multiple
+  tp1_close: 0.40   # Close 40%
+  tp2_ratio: 2.5
+  tp2_close: 0.30
+  tp3_trail_atr: 1.0
+  funding_exit: 0.0005  # 0.05% / 8h
+
+# Execution
+execution:
+  order_type: "limit"
+  ticks_inside_spread: 2
+  limit_timeout_replace: 30   # seconds
+  limit_timeout_market: 60    # seconds
+  exit_limit_timeout: 45
+  split_threshold: 500        # USD
+  split_count: 3
+  split_delay: 7              # seconds between sub-orders
+  max_retries: 3
+
+# Portfolio Circuit Breakers
+circuit_breakers:
+  daily_loss_halt: 0.03       # 3% daily loss -> halt
+  weekly_loss_halt: 0.05      # 5% weekly loss -> halt 24h
+  max_drawdown: 0.10          # 10% drawdown -> flatten all
+  drawdown_halt_hours: 24
+  recovery_size_pct: 0.50     # 50% size after circuit breaker
+  recovery_hours: 48
+  min_win_rate: 0.30
+  min_win_rate_trades: 20
+  consecutive_loss_pause: 5
+  consecutive_loss_halt_hours: 4
+  consecutive_loss_recovery_trades: 3
+
+# Regime Detection Thresholds
+regime:
+  adx_trend: 25
+  adx_range: 20
+  atr_high_vol: 2.0    # x average
+  atr_low_vol: 0.5
+
+# Indicator Parameters
+indicators:
+  ema_periods: [9, 21, 50, 200]
+  sma_periods: [20, 50, 200]
+  macd: [12, 26, 9]
+  adx_period: 14
+  rsi_period: 14
+  stochrsi: [14, 14, 3, 3]
+  cci_period: 20
+  williams_period: 14
+  mfi_period: 14
+  roc_period: 12
+  bb_period: 20
+  bb_std: 2.0
+  atr_period: 14
+  keltner_period: 20
+  keltner_atr_mult: 1.5
+  hvol_period: 20
+  vwap_bands: [1, 2]
+  obv_ma: 20
+  cmf_period: 21
+  supertrend_period: 10
+  supertrend_mult: 3.0
+  linreg_period: 20
+
+# Orderbook
+orderbook:
+  depth_levels: 20
+  wall_threshold: 3.0   # x average level size
+  update_interval: 1     # seconds
+
+# Backtest
+backtest:
+  start_date: "2025-01-01"
+  end_date: "2025-03-25"
+  initial_capital: 10000.0
+  slippage_market: 0.0005
+  slippage_limit: 0.0
+  fee_maker: 0.0001
+  fee_taker: 0.00035
+  walk_forward:
+    train_days: 60
+    test_days: 30
+    roll_days: 30
+    target_metric: "sharpe"
+    overfit_threshold: 2.0
+
+# Dashboard
+dashboard:
+  host: "0.0.0.0"
+  port: 8080
+  refresh_interval: 10   # seconds
+
+# Logging
+logging:
+  level: "INFO"
+  rotation: "daily"
+  retention_days: 30
+  log_dir: "logs"
+
+# Notifications
+notifications:
+  enabled: false
+  daily_summary_utc: "00:00"
+  channels:
+    telegram: false
+    discord: false

@@ -233,9 +233,15 @@ class HyperliquidExchange:
     def get_account_state(self) -> dict:
         """Get full account state including positions."""
         if not self.wallet_address:
+            logger.warning("No wallet address configured")
             return {}
-        result = self._info_request("clearinghouseState", user=self.wallet_address)
-        return result or {}
+        try:
+            result = self._info_request("clearinghouseState", user=self.wallet_address)
+            logger.info(f"Account state response keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
+            return result or {}
+        except Exception as e:
+            logger.error(f"Failed to get account state: {e}")
+            return {}
 
     def get_positions(self) -> List[dict]:
         """Get current open positions."""
@@ -260,8 +266,29 @@ class HyperliquidExchange:
     def get_equity(self) -> float:
         """Get account equity."""
         state = self.get_account_state()
-        if state and "marginSummary" in state:
-            return float(state["marginSummary"].get("accountValue", 0))
+        if not state:
+            logger.warning("Empty account state returned")
+            return 0.0
+
+        # Try marginSummary first (standard location)
+        if "marginSummary" in state:
+            val = float(state["marginSummary"].get("accountValue", 0))
+            if val > 0:
+                return val
+
+        # Try crossMarginSummary (newer API format)
+        if "crossMarginSummary" in state:
+            val = float(state["crossMarginSummary"].get("accountValue", 0))
+            if val > 0:
+                return val
+
+        # Try withdrawable as last resort
+        if "withdrawable" in state:
+            val = float(state["withdrawable"])
+            if val > 0:
+                return val
+
+        logger.warning(f"Could not find equity in state. Available keys: {list(state.keys())}")
         return 0.0
 
     def get_open_orders(self) -> List[dict]:

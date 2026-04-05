@@ -158,7 +158,9 @@ class Hyperbot:
         dash_cfg = self.config.get("dashboard", {})
         init_dashboard(self.db, self.position_manager, self.portfolio_mgr,
                       self.data_feed, self.exchange, self.mode,
-                      kill_callback=self._kill_switch)
+                      kill_callback=self._kill_switch,
+                      signal_engine=self.signal_engine,
+                      config=self.config)
         start_dashboard(dash_cfg.get("host", "0.0.0.0"),
                        dash_cfg.get("port", 8080))
 

@@ -399,52 +399,90 @@ async def find_unlimited_generate_button(page):
 
 
 # ─────────────────────────────────────────────
-# WAIT FOR GENERATED IMAGE
+# WAIT FOR GENERATED IMAGE  (network interception)
 # ─────────────────────────────────────────────
+
+# Keywords that appear in Higgsfield CDN/storage image URLs
+_CDN_HINTS = [
+    "higgsfield", "cdn", "storage", "s3", "amazonaws",
+    "cloudfront", "output", "result", "generated", "render",
+    "prod", "media",
+]
+# Minimum file size (bytes) to be a real generated image, not a UI icon
+_MIN_IMAGE_BYTES = 30_000
+
 
 async def wait_for_image(page, timeout: int = GENERATION_TIMEOUT):
     """
-    Poll until a new image appears in the result area.
-    Returns the image URL (str) or None on timeout.
-    """
-    start = time.time()
+    Intercept HTTP responses to capture the URL of the generated image.
 
-    # Capture existing image srcs so we can detect *new* ones
-    existing_srcs = set()
+    Strategy 1 (primary): listen for a large image response from the CDN
+                           that arrives AFTER we click Generate.
+    Strategy 2 (fallback): scan all <img> elements for any new src that
+                           wasn't present before clicking Generate.
+
+    Returns image URL (str) or None on timeout.
+    """
+    captured_url: list[str] = []   # list so inner closure can mutate it
+
+    # ── Snapshot existing <img> srcs before generation starts ──
+    existing_srcs: set[str] = set()
     for el in await page.locator("img").all():
         src = await el.get_attribute("src") or ""
         if src.startswith("http"):
             existing_srcs.add(src)
 
-    result_selectors = [
-        # Higgsfield typically renders results in a card/grid
-        "[data-testid*='result'] img",
-        "[class*='result'] img",
-        "[class*='output'] img",
-        "[class*='generated'] img",
-        "[class*='image-card'] img",
-        "[class*='gallery'] img",
-        # Generic: any new HTTP image that wasn't there before
-        "img[src*='cdn']",
-        "img[src*='storage']",
-        "img[src*='s3']",
-        "img[src*='higgsfield']",
-        "img[src*='blob']",
-    ]
+    # ── Strategy 1: network response listener ──
+    async def on_response(response):
+        if captured_url:
+            return  # already got one
+        url = response.url
+        content_type = response.headers.get("content-type", "")
+        is_image_ct = any(t in content_type for t in ("image/png", "image/jpeg",
+                                                        "image/webp", "image/gif"))
+        is_image_url = url.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+        has_cdn_hint = any(h in url.lower() for h in _CDN_HINTS)
 
+        if (is_image_ct or is_image_url) and has_cdn_hint:
+            # Filter out tiny UI assets
+            try:
+                body = await response.body()
+                if len(body) >= _MIN_IMAGE_BYTES:
+                    captured_url.append(url)
+            except Exception:
+                # body unavailable – accept the URL anyway if CT looks right
+                if is_image_ct and has_cdn_hint:
+                    captured_url.append(url)
+
+    page.on("response", on_response)
+
+    start = time.time()
     print("    Waiting for image", end="", flush=True)
 
     while time.time() - start < timeout:
         await asyncio.sleep(3)
         print(".", end="", flush=True)
 
-        for sel in result_selectors:
-            for el in await page.locator(sel).all():
-                src = await el.get_attribute("src") or ""
-                if src.startswith("http") and src not in existing_srcs and len(src) > 40:
-                    print(f" done ({int(time.time()-start)}s)")
-                    return src
+        # Check Strategy 1 result
+        if captured_url:
+            elapsed = int(time.time() - start)
+            print(f" done via network ({elapsed}s)")
+            page.remove_listener("response", on_response)
+            return captured_url[0]
 
+        # ── Strategy 2: DOM fallback ──
+        for el in await page.locator("img").all():
+            src = await el.get_attribute("src") or ""
+            if (src.startswith("http")
+                    and src not in existing_srcs
+                    and len(src) > 40
+                    and any(h in src.lower() for h in _CDN_HINTS)):
+                elapsed = int(time.time() - start)
+                print(f" done via DOM ({elapsed}s)")
+                page.remove_listener("response", on_response)
+                return src
+
+    page.remove_listener("response", on_response)
     print(" TIMEOUT")
     return None
 
@@ -454,28 +492,55 @@ async def wait_for_image(page, timeout: int = GENERATION_TIMEOUT):
 # ─────────────────────────────────────────────
 
 async def download_image(page, img_url: str, dest_path: Path) -> bool:
+    """
+    Download the generated image.
+    Tries three methods in order:
+      1. Playwright request.get (fastest, uses session cookies)
+      2. In-browser fetch via JS (works for blob: URLs and CDN with CORS)
+      3. Standard urllib as last resort
+    """
     try:
-        if img_url.startswith("blob:"):
-            data = await page.evaluate("""
-                async (url) => {
-                    const r = await fetch(url);
-                    const b = await r.blob();
-                    return new Promise(res => {
-                        const rd = new FileReader();
-                        rd.onloadend = () => res(rd.result);
-                        rd.readAsDataURL(b);
-                    });
-                }
-            """, img_url)
+        # Method 1: Playwright fetch (includes session cookies)
+        resp = await page.request.get(img_url, timeout=60000)
+        body = await resp.body()
+        if len(body) > 1000:
+            dest_path.write_bytes(body)
+            return True
+    except Exception:
+        pass
+
+    try:
+        # Method 2: in-browser JS fetch (handles blob: and auth cookies)
+        data = await page.evaluate("""
+            async (url) => {
+                const r = await fetch(url);
+                const b = await r.blob();
+                return new Promise(res => {
+                    const rd = new FileReader();
+                    rd.onloadend = () => res(rd.result);
+                    rd.readAsDataURL(b);
+                });
+            }
+        """, img_url)
+        if data and "," in data:
             _, b64 = data.split(",", 1)
-            dest_path.write_bytes(base64.b64decode(b64))
-        else:
-            response = await page.request.get(img_url)
-            dest_path.write_bytes(await response.body())
-        return True
+            raw = base64.b64decode(b64)
+            if len(raw) > 1000:
+                dest_path.write_bytes(raw)
+                return True
+    except Exception:
+        pass
+
+    try:
+        # Method 3: urllib fallback
+        import urllib.request
+        urllib.request.urlretrieve(img_url, dest_path)
+        if dest_path.stat().st_size > 1000:
+            return True
     except Exception as e:
         print(f"    [!] Download error: {e}")
-        return False
+
+    return False
 
 
 # ─────────────────────────────────────────────
@@ -496,8 +561,8 @@ async def generate_single_nft(page, nft: dict, output_path: Path,
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            # Reload page every 20 NFTs or on retry to keep session fresh
-            if attempt > 1 or nft_id % 20 == 1:
+            # Reload page on retry or every 50 NFTs to keep session fresh
+            if attempt > 1 or nft_id % 50 == 1:
                 print(f"  [→] Loading page...")
                 await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=40000)
                 await asyncio.sleep(3)

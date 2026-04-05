@@ -582,10 +582,24 @@ async def generate_single_nft(page, nft: dict, output_path: Path,
                 continue
 
             await inp.click(timeout=5000)
-            # Select all + clear
+            # Triple-click selects all text in the field, then overwrite
+            await inp.click(click_count=3)
+            await asyncio.sleep(0.1)
+            # Also Ctrl+A as backup, then delete
             await inp.press("Control+a")
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
+            await inp.press("Delete")
+            await asyncio.sleep(0.1)
+            # fill("") clears via JS – works even for React/Vue controlled inputs
             await inp.fill("")
+            await asyncio.sleep(0.2)
+            # Verify it's empty via JS before typing
+            current = await inp.input_value() if await inp.get_attribute("type") != "contenteditable" else await inp.inner_text()
+            if current.strip():
+                # Last resort: select-all + Backspace
+                await inp.press("Control+a")
+                await inp.press("Backspace")
+                await asyncio.sleep(0.1)
             await inp.type(prompt, delay=8)
             await asyncio.sleep(0.5)
 

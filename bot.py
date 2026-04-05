@@ -384,6 +384,7 @@ async def run(args):
 
 
 def main():
+    global DELAY_BETWEEN
     parser = argparse.ArgumentParser(
         description="Degen Boys Club NFT Collection Generator Bot"
     )
@@ -402,7 +403,6 @@ def main():
     args = parser.parse_args()
 
     # Allow overriding delay globally
-    global DELAY_BETWEEN
     DELAY_BETWEEN = args.delay
 
     asyncio.run(run(args))

@@ -116,19 +116,31 @@ async def setup_browser(playwright, headless: bool = False, chrome_path: str = N
 # LOGIN GUARD
 # ─────────────────────────────────────────────
 
-async def login_if_needed(page):
-    """Navigate to the tool page; pause for manual login if redirected."""
+async def login_if_needed(page, force_login: bool = False):
+    """
+    Navigate to the tool page.
+
+    If `force_login` is True (--login flag), always pause so the user
+    can log in manually — regardless of what the URL looks like.
+    Otherwise, only pause if we detect a redirect away from the tool page.
+    """
     await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=40000)
     await asyncio.sleep(3)
 
-    # If not on the image tool page, we need login
-    if "image" not in page.url and "seedream" not in page.url:
+    needs_login = force_login or ("image" not in page.url and "seedream" not in page.url)
+
+    if needs_login:
         print("\n" + "=" * 60)
-        print("  LOGIN REQUIRED")
-        print("  A browser window is open. Log in to Higgsfield.ai,")
-        print("  then press ENTER in this terminal to continue.")
+        print("  LOGIN STEP")
+        print("  The browser window is open at Higgsfield.ai.")
+        print()
+        print("  1. Log in to your Higgsfield account in the browser.")
+        print("  2. Make sure you can see the image generator page.")
+        print("  3. Come back here and press ENTER to start generating.")
         print("=" * 60 + "\n")
-        input("  Press ENTER after logging in > ")
+        input("  Press ENTER when you are logged in and ready > ")
+
+        # Go to the tool page in case the user ended up elsewhere
         await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=40000)
         await asyncio.sleep(3)
 
@@ -582,7 +594,7 @@ async def run(args):
         )
 
         try:
-            await login_if_needed(page)
+            await login_if_needed(page, force_login=args.login)
 
             ok_count    = 0
             fail_count  = 0
@@ -655,6 +667,8 @@ def main():
                         help="Last NFT ID to generate (default: 1000)")
     parser.add_argument("--resume",      action="store_true",
                         help="Skip NFTs that are already downloaded")
+    parser.add_argument("--login",       action="store_true",
+                        help="Always pause at startup so you can log in manually")
     parser.add_argument("--headless",    action="store_true",
                         help="Run browser without visible window")
     parser.add_argument("--chrome-path", type=str,   default=None,
